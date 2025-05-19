@@ -1,0 +1,17 @@
+server:
+  port: 8080
+
+database:
+  url: postgres://username:password@localhost:5432/db_name?sslmode=disable
+
+auth:
+  jwt_secret: secret
+  hmac_secret: secret
+  encryption_key: key
+
+smtp:
+  host: smtp.yandex.com
+  port: 587
+  user: pochta@yandex.ru
+  pass: password
+  from: pochta@yandex.ru
