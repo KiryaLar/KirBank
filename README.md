@@ -56,246 +56,263 @@
 
 ## Сборка и запуск
 
-### 1️⃣ Клонировать репозиторий
+### 1. Клонировать репозиторий
 
 ```bash
-git clone https://github.com/username/defcode.git
-cd defcode
+git clone https://github.com/yourusername/banking-api.git
+cd banking-api
 ```
 
-### 2️⃣ Настроить окружение
+### 2. Настройка базы данных
 
-- Установите PostgreSQL 15+ и создайте базу defcode_db.
+- Установите PostgreSQL 17 и создайте базу данных
+- Настройте схему базы данных, выполнив SQL-скрипты (sql/db_completion)
+- 
+### 3. Настройка переменных окружения
 
-- Создайти application.yaml на основе application.yaml.origin из проекта
-### 3️⃣ Собрать и запустить
+Создайте файл config.yaml, пример файла config.yaml (вставьте свои данные):
+```yaml
+  server:
+  port: 8080
+
+database:
+  url: postgres://username:password@localhost:5432/db_name?sslmode=disable
+
+auth:
+  jwt_secret: secret
+  hmac_secret: secret
+  encryption_key: key
+
+smtp:
+  host: smtp.yandex.com
+  port: 587
+  user: pochta@yandex.ru
+  pass: password
+  from: pochta@yandex.ru
+```
+
+### 4. Установка зависимостей
+
 ```bash
-mvn clean install      # сборка и юнит‑тесты
-mvn spring-boot:run    # запуск
+go mod tidy
 ```
-После старта API доступно по адресу http://localhost:8080.
+
+### 5. Запуск приложения
+
+```bash
+go run cmd/server/main.go
+```
+API будет доступно по адресу http://localhost:8080 (или на другом порту, если указано в конфигурации).
 
 ## Использование API
 
-    Во всех примерах HOST = http://localhost:8080.
-    Формат даты времени — ISO 8601.
+### Аутентификация
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+POST|	/register	|Регистрация нового пользователя|	{ "email": "string", "username": "string", "password": "string" }|	201 Created с деталями пользователя|
+POST|	/login	|Вход и получение JWT-токена|	{ "email": "string", "password": "string" }	|200 OK с { "token": "string" }|
 
-## Аутентификация
-| Метод | URL                  | Тело запроса                  | Описание                                |
-|-------|-----------------------|-------------------------------|-----------------------------------------|
-| POST  | `/auth/register`      | `{username, password, role}`  | Регистрация (роль: `ADMIN` или `USER`)  |
-| POST  | `/auth/login`         | `{username, password}`        | Получить `accessToken` и `refreshToken` |
-| POST  | `/auth/refresh-token` | `{refreshToken}`              | Обновить JWT‑пару                        |
-| POST  | `/auth/logout`        | `{refreshToken}`              | Отозвать refresh‑токен                  |
-
-### Пример запроса POST `/auth/register`
+**Пример запроса POST /register**
 ```http
-POST /auth/register
+POST /register
 Content-Type: application/json
 
 {
-  "username": "user",
-  "password": "Secret123",
-  "role": "user",
+  "email": "user@example.com",
+  "username": "user123",
+  "password": "securepassword"
 }
 ```
 **Ответ 201 Created**
 ```json
 {
-  "message": "User alice has successfully registered as an USER",
-  "timestamp": "Tue May 01 12:45:01 GMT+03:00 2025"
+  "id": "123",
+  "username": "user123",
+  "email": "user@example.com"
 }
 ```
-
-### Пример запроса POST `/auth/login`
+**Пример запроса POST /login**
 ```http
-POST /auth/login
+POST /login
 Content-Type: application/json
 
 {
-  "username": "user",
-  "password": "Secret123"
+  "email": "user@example.com",
+  "password": "securepassword"
 }
 ```
 **Ответ 200 OK**
 ```json
 {
-  "role": "USER",
-  "accessToken": "<JWT>",
-  "refreshToken": "<JWT>"
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
-### Пример запроса POST `/auth/logout`
-```http
-POST /auth/logout
-Content-Type: application/json
+Для всех защищенных эндпоинтов добавляйте заголовок `Authorization: Bearer <token>`.
 
+### Управление счетами
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+POST|	/accounts	|Создание нового счета|	-	|201 Created с деталями счета
+GET|	/accounts/{accountId}/balance|	Получение баланса счета|	-	|200 OK с { "balance": float }
+GET|	/accounts/{accountId}/predict|	Прогноз баланса счета|	-	|200 OK с { "predicted_balance": float, "key_rate": float }
+
+**Пример запроса POST /accounts**
+```http
+POST /accounts
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+**Ответ 201 Created**
+
+```json
 {
-  "refreshToken": "<ваш_refresh_token>"
+  "id": "456",
+  "account_number": "1234567890",
+  "balance": 0.0,
+  "currency": "RUB"
 }
+```
+**Пример запроса GET /accounts/{accountId}/balance**
+```http
+GET /accounts/456/balance
+Authorization: Bearer <token>
 ```
 **Ответ 200 OK**
 ```json
 {
-  "message": "Success logged out",
-  "timestamp": "Tue May 01 12:45:01 GMT+03:00 2025"
+  "balance": 1000.50
 }
 ```
-### Пример запроса POST `/auth/refresh-token`
-```http
-POST /auth/refresh-token
-Content-Type: application/json
+**Пример запроса GET /accounts/{accountId}/predict**
 
-{
-  "refreshToken": "<ваш_refresh_token>"
-}
+```http
+GET /accounts/456/predict
+Authorization: Bearer <token>
 ```
 **Ответ 200 OK**
 ```json
 {
-  "role": "USER",
-  "accessToken": "<новый_access_token>",
-  "refreshToken": "<новый_refresh_token>"
+  "predicted_balance": 950.75,
+  "key_rate": 7.5
 }
 ```
 
-Добавляйте заголовок Authorization: Bearer <accessToken> ко всем защищённым эндпоинтам.
+### Операции с картами
 
-## Пользовательские OTP-операции
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+POST|	/cards|	Выпуск новой карты	|{ "account_id": "string" }|	201 Created с деталями карты
 
-| Метод | URL                   | Тело запроса                         | Назначение                     |
-|-------|------------------------|--------------------------------------|--------------------------------|
-| POST  | `/user/otp/generate`   | `{method, contact, operationType}`   | Сгенерировать и отправить код |
-| POST  | `/user/otp/validate`   | `{code}`                             | Проверить введённый код       |
-
-### Значения `operationType`:
-1. Login Verification
-2. Account Registration
-3. Password Reset
-4. Transaction Confirmation
-5. Update Contact Information
-6. Account Deletion
-
-### Пример генерации кода по SMS
+**Пример запроса POST /cards**
 ```http
-POST /user/otp/generate
-Authorization: Bearer <accessToken>
+POST /cards
+Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "method": "sms",
-  "contact": "+79179997799",
-  "operationType": "4"
+  "account_id": "456"
 }
 ```
-### Пример генерации кода по email
-```http
-POST /user/otp/generate
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-
-{
-  "method": "email",
-  "contact": "user@yande.ru",
-  "operationType": "2"
-}
-```
-### Пример генерации кода по telegram
-```http
-POST /user/otp/generate
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-
-{
-  "method": "telegram",
-  "contact": "<telegram bot chat id>",
-  "operationType": "4"
-}
-```
-**Ответ 200 OK**
+**Ответ 201 Created**
 ```json
 {
-  "message": "Code was successfully sent",
-  "timestamp": "Tue May 01 12:45:01 GMT+03:00 2025"
+  "card_number": "4111111111111111",
+  "expiry": "12/27",
+  "cvv": "123"
 }
 ```
+### Кредитные операции
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+|POST|	/credits|	Оформление нового кредита|	{ "account_id": "string", "amount": float, "interest_rate": float, "term_months": int }	|201 Created с деталями кредита|
+|GET|	/credits/{creditId}/schedule|	Получение графика платежей|	-|	200 OK с графиком платежей|
 
-### Пример валидации кода
+**Пример запроса POST /credits**
 ```http
-POST /user/otp/validate
+POST /credits
+Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "code": "123456"
+  "account_id": "456",
+  "amount": 100000.0,
+  "interest_rate": 10.0,
+  "term_months": 12
 }
 ```
-**Ответ 200 OK**
+**Ответ 201 Created**
 ```json
 {
-  "message": "Code is correct",
-  "timestamp": "Tue May 01 12:45:01 GMT+03:00 2025"
+  "id": "789",
+  "amount": 100000.0,
+  "interest_rate": 10.0,
+  "term_months": 12,
+  "status": "active"
 }
 ```
-
-## Администрирование
-| Метод | URL                  | Тело запроса               | Функция                             |
-|-------|-----------------------|----------------------------|-------------------------------------|
-| PUT   | `/admin/otp-config`   | `{length, lifetime}`       | Изменить длину и TTL кода           |
-| GET   | `/admin/users`        | –                          | Получить список пользователей (USER)|
-| DELETE| `/admin/users/{id}`   | –                          | Удалить пользователя                |
-### Значения `lifetime` в виде число + один символ из (smhd):
-1. 30s
-2. 2m
-3. 3h
-4. 1d
-
-### Пример изменения конфигурации
+**Пример запроса GET /credits/{creditId}/schedule**
 ```http
-PUT /admin/otp-config
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-
-{
-  "length": 8,
-  "lifetime": "2m"   // 2 минуты 
-}
-```
-**Ответ 200 OK**
-```json
-{
-  "message": "OTP config was successfully changed: New duration: 2m New code length: 8",
-  "timestamp": "Tue May 01 12:45:01 GMT+03:00 2025"
-}
-```
-
-### Пример получения списка пользователей
-```http
-GET /admin/users
-Authorization: Bearer <access_token>
+GET /credits/789/schedule
+Authorization: Bearer <token>
 ```
 **Ответ 200 OK**
 ```json
 [
   {
-    "id": 1,
-    "username": "user1"
+    "payment_date": "2025-06-01",
+    "payment_amount": 8791.67,
+    "principal_amount": 7916.67,
+    "interest_amount": 875.0,
+    "status": "pending"
   },
-  {
-    "id": 2,
-    "username": "user2"
-  }
+  ...
 ]
 ```
+### Транзакции
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+|POST|	/transfer	|Перевод между счетами|	{ "from_account": "string", "to_account": "string", "amount": float }	|200 OK с деталями транзакции|
 
-### Пример удаления пользователя
+**Пример запроса POST /transfer**
 ```http
-GET /admin/users/{id}
-Authorization: Bearer <access_token>
+POST /transfer
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "from_account": "456",
+  "to_account": "789",
+  "amount": 500.0
+}
 ```
 **Ответ 200 OK**
 ```json
 {
-  "message": "User with id 1 deleted",
-  "timestamp": "Tue May 01 12:55:01 GMT+03:00 2025"
+  "transaction_id": "101112",
+  "status": "success"
 }
 ```
+### Аналитика
+|Метод |	URL|	Описание|	Тело запроса|	Ответ|
+|------|----|-----------|--------------|------|
+|GET|	/analytics|	Получение аналитики транзакций|	-|	200 OK с данными аналитики|
+
+**Пример запроса GET /analytics**
+```http
+GET /analytics
+Authorization: Bearer <token>
+```
+**Ответ 200 OK**
+```json
+{
+  "sent": {
+    "count": 10,
+    "total": 5000.0
+  },
+  "received": {
+    "count": 5,
+    "total": 3000.0
+  }
+}
+```
+
